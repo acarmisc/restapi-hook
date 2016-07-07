@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
 import functools
 import json
+import os
+import pprint
+
+import psutil
+import time
 import werkzeug
 import logging
 
 from openerp import http
-from openerp.http import Response, JsonRequest, HttpRequest, request, Root
+from openerp.http import Response, JsonRequest, HttpRequest, request, Root, rpc_request, rpc_response
+from openerp.service.server import memory_info
 
 _logger = logging.getLogger(__name__)
 
@@ -21,7 +27,7 @@ def croute(route=None, **kw):
             if isinstance(route, list):
                 routes = route
             else:
-                routes = [route]
+                routes = ['/restapi/' + route]
             routing['routes'] = routes
 
         @functools.wraps(f)
@@ -56,7 +62,7 @@ class CRoot(Root):
     def get_request(self, httprequest):
 
         # deduce type of request
-        if 'api' in httprequest.path:
+        if 'restapi' in httprequest.path:
             return CJsonRequest(httprequest)
         if httprequest.args.get('jsonp'):
             return JsonRequest(httprequest)
@@ -105,27 +111,19 @@ class CJsonRequest(JsonRequest):
 
         # Read POST content or POST Form Data named "request"
         self.jsonrequest = {}
-        """
-        try:
-            self.jsonrequest = json.loads(request)
-        except ValueError:
-            msg = 'Invalid JSON data: %r' % (request,)
-            _logger.info('%s: %s', self.httprequest.path, msg)
-            raise werkzeug.exceptions.BadRequest(msg)
-        """
 
         self.params = dict(self.jsonrequest.get("params", {}))
         self.context = self.params.pop('context', dict(self.session.context))
 
     def _json_response(self, result=None, error=None):
         response = {
-            'jsonrpc': '2.0',
-            'id': self.jsonrequest.get('id')
+            'pagination': result.pagination,
+            'msg': result.msg
         }
         if error is not None:
             response['error'] = error
         if result is not None:
-            response['result'] = result
+            response['payload'] = result.payload
 
         if self.jsonp:
             # If we use jsonp, that's mean we are called from another host
@@ -142,13 +140,90 @@ class CJsonRequest(JsonRequest):
             body, headers=[('Content-Type', mime),
                            ('Content-Length', len(body))])
 
+    def _call_function(self, *args, **kwargs):
+        from openerp.service import security, model as service_model
+        request = self
+        if self.endpoint.routing['type'] != self._request_type:
+            msg = "%s, %s: Function declared as capable of handling request of type '%s' but called with a request of type '%s'"
+            params = (self.endpoint.original, self.httprequest.path, self.endpoint.routing['type'], self._request_type)
+            _logger.info(msg, *params)
+            raise werkzeug.exceptions.BadRequest(msg % params)
+
+        if self.endpoint_arguments:
+            kwargs.update(self.endpoint_arguments)
+
+        # Backward for 7.0
+        if self.endpoint.first_arg_is_req:
+            args = (request,) + args
+
+        # Correct exception handling and concurency retry
+        @service_model.check
+        def checked_call(___dbname, *a, **kw):
+            # The decorator can call us more than once if there is an database error. In this
+            # case, the request cursor is unusable. Rollback transaction to create a new one.
+            if self._cr:
+                self._cr.rollback()
+                self.env.clear()
+            result = self.endpoint(*a, **kw)
+            if isinstance(result, Response) and result.is_qweb:
+                # Early rendering of lazy responses to benefit from @service_model.check protection
+                result.flatten()
+            return result
+
+        if self.db:
+            return checked_call(self.db, *args, **kwargs)
+        return self.endpoint(*args, **kwargs)
+
+    def dispatch(self):
+        if self.jsonp_handler:
+            return self.jsonp_handler()
+        try:
+            rpc_request_flag = rpc_request.isEnabledFor(logging.DEBUG)
+            rpc_response_flag = rpc_response.isEnabledFor(logging.DEBUG)
+            if rpc_request_flag or rpc_response_flag:
+                endpoint = self.endpoint.method.__name__
+                model = self.params.get('model')
+                method = self.params.get('method')
+                args = self.params.get('args', [])
+
+                start_time = time.time()
+                _, start_vms = 0, 0
+                if psutil:
+                    _, start_vms = memory_info(psutil.Process(os.getpid()))
+                if rpc_request and rpc_response_flag:
+                    rpc_request.debug('%s: %s %s, %s',
+                                      endpoint, model, method, pprint.pformat(args))
+
+            # Result is an istance of CResponse
+            response = self._call_function(**self.params)
+            result = response.payload
+
+            if rpc_request_flag or rpc_response_flag:
+                end_time = time.time()
+                _, end_vms = 0, 0
+                if psutil:
+                    _, end_vms = memory_info(psutil.Process(os.getpid()))
+                logline = '%s: %s %s: time:%.3fs mem: %sk -> %sk (diff: %sk)' % (
+                    endpoint, model, method, end_time - start_time, start_vms / 1024, end_vms / 1024,
+                    (end_vms - start_vms) / 1024)
+                if rpc_response_flag:
+                    rpc_response.debug('%s, %s', logline, pprint.pformat(result))
+                else:
+                    rpc_request.debug(logline)
+
+            return self._json_response(response)
+        except Exception, e:
+            return self._handle_exception(e)
+
+
+class CResponse:
+
+    def __init__(self, msg=None, payload=None, status_code=200, pagination=None):
+        self.msg = msg
+        self.payload = payload
+        self.status_code = status_code
+        self.pagination = pagination
+
 
 class RestAPICore(http.Controller):
-    _logger.info('RestAPICore...')
-
-    @croute('/api/status', type='json', auth='public')
-    def api_status(self):
-        _logger.info(request.params)
-        cr, context, pool = request.cr, request.context, request.registry
-
-        return dict(status='OK')
+    pass
