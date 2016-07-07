@@ -22,12 +22,12 @@ def croute(route=None, **kw):
     assert 'type' not in routing or routing['type'] in ("http", "json")
 
     def decorator(f):
-        _logger.info('Custom Decorator')
+
         if route:
             if isinstance(route, list):
                 routes = route
             else:
-                routes = ['/restapi/' + route]
+                routes = [route]
             routing['routes'] = routes
 
         @functools.wraps(f)
@@ -62,7 +62,7 @@ class CRoot(Root):
     def get_request(self, httprequest):
 
         # deduce type of request
-        if 'restapi' in httprequest.path:
+        if httprequest.path.split('/')[1] == 'restapi':
             return CJsonRequest(httprequest)
         if httprequest.args.get('jsonp'):
             return JsonRequest(httprequest)
@@ -116,10 +116,13 @@ class CJsonRequest(JsonRequest):
         self.context = self.params.pop('context', dict(self.session.context))
 
     def _json_response(self, result=None, error=None):
-        response = {
-            'pagination': result.pagination,
-            'msg': result.msg
-        }
+        if not result:
+            response = {}
+        else:
+            response = {
+                'pagination': result.pagination,
+                'msg': result.msg
+            }
         if error is not None:
             response['error'] = error
         if result is not None:
@@ -224,6 +227,3 @@ class CResponse:
         self.status_code = status_code
         self.pagination = pagination
 
-
-class RestAPICore(http.Controller):
-    pass
