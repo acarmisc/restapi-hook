@@ -19,7 +19,7 @@ class Paginator:
         next_page = "%s/?page=%s" % (base_url, current_page + 1) if not is_last else None
         prev_page = "%s/?page=%s" % (base_url, current_page - 1) if current_page > 1 else None
 
-        response = (next=next_page, prev=prev_page, offset=offset, limit=limit, count=totalcount)
+        response = dict(next=next_page, prev=prev_page, offset=offset, limit=limit, count=totalcount)
 
         return response
 
