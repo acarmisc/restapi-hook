@@ -9,7 +9,6 @@ import time
 import werkzeug
 import logging
 
-from openerp import http
 from openerp.http import Response, JsonRequest, HttpRequest, request, Root, rpc_request, rpc_response
 from openerp.service.server import memory_info
 
@@ -111,6 +110,7 @@ class CJsonRequest(JsonRequest):
 
         # Read POST content or POST Form Data named "request"
         self.jsonrequest = {}
+        self.authorization = self.httprequest.headers.environ.get('HTTP_AUTHORIZATION')
 
         self.params = dict(self.jsonrequest.get("params", {}))
         self.context = self.params.pop('context', dict(self.session.context))
