@@ -1,19 +1,9 @@
 
 class Paginator:
 
-    PAGE_SIZE = 10
+    PAGE_SIZE = 2
 
-    @staticmethod
-    def _has_next(data, page):
-        #TODO
-        return False
-
-    @staticmethod
-    def _has_prev(data, page):
-        # TODO
-        return False
-
-    def paginate(self, request, data):
+    def paginate(self, request, totalcount):
 
         current_page = int(request.args.get('page')) if 'page' in request.args else 0
         base_url = request.base_url
@@ -21,10 +11,15 @@ class Paginator:
         if not current_page:
             return dict(next=None, prev=None)
 
-        next_page = "%s/?page=%s" % (base_url, current_page + 1) if Paginator()._has_next(data, current_page) else None
-        prev_page = "%s/?page=%s" % (base_url, current_page - 1) if Paginator()._has_prev(data, current_page) else None
+        offset = self.PAGE_SIZE * (current_page - 1)
+        limit = self.PAGE_SIZE * current_page
 
-        response = dict(next=next_page, prev=prev_page)
+        is_last = True if limit >= totalcount else False
+
+        next_page = "%s/?page=%s" % (base_url, current_page + 1) if not is_last else None
+        prev_page = "%s/?page=%s" % (base_url, current_page - 1) if current_page > 1 else None
+
+        response = (next=next_page, prev=prev_page, offset=offset, limit=limit, count=totalcount)
 
         return response
 
@@ -45,7 +40,7 @@ class Tools:
                 if f not in el.fields_get_keys():
                     continue
 
-                if type(el[f]) not in [list, int, str, bool, dict, unicode]:
+                if type(el[f]) not in [list, int, str, bool, dict, unicode, float]:
                     eldict[f] = Tools().to_json(el[f], fields=['name', 'id'])
                     continue
 
