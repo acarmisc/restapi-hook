@@ -8,6 +8,10 @@ class Paginator:
         current_page = int(request.args.get('page')) if 'page' in request.args else 0
         base_url = request.base_url
 
+        original_query = ''
+        for k, v in request.args.items():
+            if k != 'page': original_query += '&%s=%s' % (k, v)
+
         if not current_page:
             return dict(next=None, prev=None)
 
@@ -16,8 +20,8 @@ class Paginator:
 
         is_last = True if limit >= totalcount else False
 
-        next_page = "%s/?page=%s" % (base_url, current_page + 1) if not is_last else None
-        prev_page = "%s/?page=%s" % (base_url, current_page - 1) if current_page > 1 else None
+        next_page = "%s/?%s&page=%s" % (base_url, original_query, current_page + 1) if not is_last else None
+        prev_page = "%s/?%s&page=%s" % (base_url, original_query, current_page - 1) if current_page > 1 else None
 
         response = dict(next=next_page, prev=prev_page, offset=offset, limit=limit, count=totalcount)
 
