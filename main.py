@@ -87,6 +87,8 @@ class CJsonRequest(JsonRequest):
         request = None
         request_id = args.get('id')
 
+        formdata = {}
+
         if jsonp and self.httprequest.method == 'POST':
             # jsonp 2 steps step1 POST: save call
             def handler():
@@ -106,12 +108,13 @@ class CJsonRequest(JsonRequest):
             request = self.session.pop('jsonp_request_%s' % (request_id,), '{}')
         else:
             # regular jsonrpc2
+            formdata = self.httprequest.form
+            _logger.debug(formdata)
             request = self.httprequest.stream.read()
 
         # Read POST content or POST Form Data named "request"
-        self.jsonrequest = {}
+        self.jsonrequest = formdata
         self.authorization = self.httprequest.headers.environ.get('HTTP_AUTHORIZATION')
-
         self.params = dict(self.jsonrequest.get("params", {}))
         self.context = self.params.pop('context', dict(self.session.context))
 
