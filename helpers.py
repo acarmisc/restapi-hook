@@ -1,5 +1,12 @@
+import logging
+from openerp.osv import fields as odoo_fields
+
+
+_logger = logging.getLogger(__name__)
 
 class Paginator:
+
+    # TODO: get configured value from DB?
 
     PAGE_SIZE = 2
 
@@ -44,11 +51,20 @@ class Tools:
                 if f not in el.fields_get_keys():
                     continue
 
+                if 'partecipant' in f:
+                    _logger.debug(f)
+
                 if type(el[f]) not in [list, int, str, bool, dict, unicode, float]:
-                    eldict[f] = Tools().to_json(el[f], fields=['name', 'id'])
+                    if hasattr(el[f], '_jsonfields'):
+                        eldict[f] = Tools().to_json(el[f], fields=el[f]._jsonfields.split(','))
+                    else:
+                        eldict[f] = Tools().to_json(el[f], fields=['name', 'id'])
                     continue
 
-                eldict[f] = el[f]
+                if not el[f] and type(obj._columns.get(f)) is not odoo_fields.boolean:
+                    eldict[f] = None
+                else:
+                    eldict[f] = el[f]
 
             res.append(eldict)
 

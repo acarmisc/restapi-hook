@@ -202,7 +202,7 @@ class CJsonRequest(JsonRequest):
 
             # Result is an istance of CResponse
             response = self._call_function(**self.params)
-            result = response.payload
+            result = response.payload if response else None
 
             if rpc_request_flag or rpc_response_flag:
                 end_time = time.time()
