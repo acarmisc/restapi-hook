@@ -42,7 +42,7 @@ class Tools:
         res = list()
 
         if not fields:
-            fields = obj.fields_get_keys()
+            fields = obj.fields_get_keys() if not hasattr(obj, '_jsonfields') else obj._jsonfields.split(',')
 
         for el in obj:
             eldict = dict()
@@ -50,9 +50,6 @@ class Tools:
             for f in fields:
                 if f not in el.fields_get_keys():
                     continue
-
-                if 'partecipant' in f:
-                    _logger.debug(f)
 
                 if type(el[f]) not in [list, int, str, bool, dict, unicode, float]:
                     if hasattr(el[f], '_jsonfields'):
