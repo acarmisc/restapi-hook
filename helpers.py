@@ -8,7 +8,7 @@ class Paginator:
 
     # TODO: get configured value from DB?
 
-    PAGE_SIZE = 2
+    PAGE_SIZE = 10
 
     def paginate(self, request, totalcount):
 

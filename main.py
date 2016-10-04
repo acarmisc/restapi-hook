@@ -142,9 +142,15 @@ class CJsonRequest(JsonRequest):
             mime = 'application/json'
             body = json.dumps(response)
 
-        return Response(
-            body, headers=[('Content-Type', mime),
-                           ('Content-Length', len(body))])
+        resp = Response(body, headers=[('Content-Type', mime),
+                                       ('Content-Length', len(body))])
+        if result.status_code == 401:
+            resp.status = "401 Unauthorized"
+
+        if result.status_code == 400:
+            resp.status = "400 Bad Request"
+
+        return resp
 
     def _call_function(self, *args, **kwargs):
         from openerp.service import security, model as service_model
