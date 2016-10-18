@@ -150,6 +150,9 @@ class CJsonRequest(JsonRequest):
         if result.status_code == 400:
             resp.status = "400 Bad Request"
 
+        if result.status_code == 500:
+            resp.status = "500 Internal Server Error"
+
         return resp
 
     def _call_function(self, *args, **kwargs):
