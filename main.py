@@ -144,6 +144,7 @@ class CJsonRequest(JsonRequest):
 
         resp = Response(body, headers=[('Content-Type', mime),
                                        ('Content-Length', len(body))])
+
         if result.status_code == 401:
             resp.status = "401 Unauthorized"
 

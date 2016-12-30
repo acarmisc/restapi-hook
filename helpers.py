@@ -49,6 +49,10 @@ class Tools:
 
             for f in fields:
                 if f not in el.fields_get_keys():
+                    try:
+                        eldict[f] = getattr(obj, f)()
+                    except:
+                        eldict[f] = None
                     continue
 
                 if type(el[f]) not in [list, int, str, bool, dict, unicode, float]:
